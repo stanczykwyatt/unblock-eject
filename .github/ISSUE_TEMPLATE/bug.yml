@@ -1,0 +1,34 @@
+name: Bug report
+description: Something isn't working, or it named the wrong thing.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What were you doing, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What it showed
+      description: The names it listed and what it said to do, like "it said Spotlight, but quitting Photos fixed it". Please don't paste the names of your files.
+  - type: input
+    id: disk
+    attributes:
+      label: The disk
+      description: Like "a USB stick formatted ExFAT", "an SD card from a camera" or "a disk image".
+  - type: input
+    id: version
+    attributes:
+      label: Unblock Eject version
+      description: Menu bar icon → About Unblock Eject, or `unblock-eject --version`.
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+    validations:
+      required: true

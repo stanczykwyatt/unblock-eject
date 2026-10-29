@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an idea, or something it should explain better.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would it help you do?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How do you picture it working?
+  - type: textarea
+    id: process
+    attributes:
+      label: A process it should know
+      description: If something kept your disk busy and it didn't explain it well, its name and what it turned out to be.

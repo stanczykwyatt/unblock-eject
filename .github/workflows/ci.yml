@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      # What the app must never do, checked line by line and again with calls split across lines joined.
+      # C's system() isn't listed: Swift marks it unavailable on macOS, so it can't be called.
+      NETWORK: 'URLSession|NWConnection|CFSocket|NSWorkspace[^)]*\.open\(|openURL|openApplication|LSOpen|CGEvent(Tap|PostToPid)|tapCreate|AXIsProcessTrusted|AXUIElement|CGWindowListCreateImage|SCShareableContent|NSAppleScript|NSAppleEventDescriptor|AESend|NSEvent\.addGlobalMonitor|WKWebView|NSURLConnection|NWListener|NWBrowser|CFStream|getaddrinfo|\bsocket\(|\bconnect\(|contentsOf: *URL\(string|SMJobBless|task_for_pid|ptrace|NSXPCConnection|(^|[^[:alnum:]_])Link\('
+      FORCE: 'forceTerminate|\bkill *\(|killpg|pthread_kill|sigqueue|proc_terminate|SIG(KILL|TERM|INT|HUP|QUIT|STOP|ABRT|USR1|USR2)\b|OptionForce|MNT_FORCE|\bunmount *\(|posix_spawn|(^|[^[:alnum:]_])Process *\(|NSTask|NSUserUnixTask|\bexec(l|lp|le|v|vp|ve|vP) *\(|\bfork *\(|\bvfork|popen|SBApplication|launchApplication|DADisk(Unmount|Eject)Options\(rawValue'
+      FILES: 'Data\(contentsOf|contents\(atPath|String\(contentsOf|FileHandle|fopen\(|freopen\(|\bopen *\(|openat\(|mmap\(|dlopen\(|\.write\(to:|\.write\(toFile|createFile|copyItem|moveItem|linkItem|removeItem|trashItem|recycle\(|createDirectory|setAttributes|createSymbolicLink|unlink\(|rmdir\(|\bmkdir *\(|rename\(|truncate\(|copyfile\(|clonefile\(|setxattr\(|removexattr\(|NSDictionary\(contentsOf|NSArray\(contentsOf|NSData\(contentsOf|NSImage\(contentsOf|contentsOfFile|InputStream\(|OutputStream\(|sqlite3_open'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run tests
+        run: swift test
+
+      - name: Run the disk image tests
+        # Makes a scratch disk image, holds files open on it from processes the test starts, and
+        # checks they're found, that ejecting is refused while they run, and that it works after.
+        run: UNBLOCK_EJECT_DISK_TESTS=1 swift test --filter DiskImageTests
+
+      - name: Build the app
+        run: scripts/build-app.sh
+
+      - name: Check the app has no entitlements and the hardened runtime
+        run: |
+          for binary in "build/Unblock Eject.app" build/unblock-eject; do
+            entitlements="$(codesign -d --entitlements - --xml "$binary" 2>/dev/null || true)"
+            if grep -q "<key>" <<< "$entitlements"; then
+              echo "$entitlements"
+              echo "::error::$binary must have no entitlements: no network, no Apple Events, nothing to grant."
+              exit 1
+            fi
+            if ! codesign -dv "$binary" 2>&1 | grep -q "flags=.*runtime"; then
+              echo "::error::$binary must be signed with the hardened runtime."
+              exit 1
+            fi
+            # An ad-hoc build's default requirement names its exact code. One that names only an
+            # identifier would let another program pass itself off as this one.
+            requirement="$(codesign -d -r- "$binary" 2>&1 | grep 'designated =>' || true)"
+            if ! grep -qE '^# designated => cdhash H"[0-9a-f]+"( or cdhash H"[0-9a-f]+")*$' <<< "$requirement"; then
+              echo "$requirement"
+              echo "::error::$binary must keep the default requirement, which names its exact build."
+              exit 1
+            fi
+          done
+          echo "No entitlements, hardened runtime, default requirement."
+
+      - name: Check the app never uses the network, the screen, input or other apps' insides
+        run: |
+          if grep -rnE "$NETWORK" Sources; then
+            echo "::error::Unblock Eject must not use the network, open URLs, control other apps, or read input or the screen."
+            exit 1
+          fi
+          echo "No networking, URL opening, Apple Events, event taps, Accessibility, screen capture or task ports."
+
+      - name: Check nothing is ever forced, killed or started
+        run: |
+          # Quitting is only ever NSRunningApplication's normal terminate(), in one place, and
+          # ejecting only ever Disk Arbitration without its force option.
+          if grep -rnE "$FORCE" Sources; then
+            echo "::error::Unblock Eject must never force-quit, kill, force-eject or start another program."
+            exit 1
+          fi
+          found="$(grep -rnE '\.terminate\(' Sources | grep -v '^Sources/UnblockEject/AppControl.swift:' | grep -v '#selector(NSApplication.terminate(_:))' || true)"
+          if [ -n "$found" ]; then
+            echo "$found"
+            echo "::error::Only AppControl.swift may ask an app to quit."
+            exit 1
+          fi
+          if grep -rnE 'DADisk(Unmount|Eject|Mount|Rename|Claim)' Sources | grep -v '^Sources/EjectCore/Ejector.swift:'; then
+            echo "::error::Only Ejector.swift may unmount or eject."
+            exit 1
+          fi
+          options="$(grep -rnoE 'DADisk(Unmount|Eject)Options\([^)]*\)' Sources | grep -vE 'Options\(kDADisk(UnmountOptionWhole|UnmountOptionDefault|EjectOptionDefault)\)$' || true)"
+          if [ -n "$options" ]; then
+            echo "$options"
+            echo "::error::Unmount and eject may only use the whole-disk or default options."
+            exit 1
+          fi
+          echo "Quit is the normal one, only in AppControl.swift; eject is never forced, only in Ejector.swift; nothing is started."
+
+      - name: Check none of your files is ever opened, written or deleted
+        run: |
+          # It learns which files are open from the kernel, by name. It never opens one itself; its
+          # settings go through UserDefaults, and app icons come from macOS, only in AppIcons.swift.
+          if grep -rnE "$FILES" Sources; then
+            echo "::error::Unblock Eject must never open, write or delete a file."
+            exit 1
+          fi
+          if grep -rn 'icon(forFile:' Sources | grep -v '^Sources/UnblockEject/AppIcons.swift:'; then
+            echo "::error::Only AppIcons.swift may ask macOS for an app's icon."
+            exit 1
+          fi
+          echo "No file is opened, written or deleted."
+
+      - name: Check calls split across lines too
+        run: |
+          # The checks above read line by line, so join each call's arguments onto one line and look again.
+          joined="$(find Sources -name '*.swift' -exec cat {} + | perl -0pe 's/\(\s+/(/g; s/\s*\n\s*\././g; s/:\s*\n\s*/: /g')"
+          for name in NETWORK FORCE FILES; do
+            if grep -nE "${!name}" <<< "$joined"; then
+              echo "::error::A call split across lines matches the $name check."
+              exit 1
+            fi
+          done
+          echo "Nothing found with calls joined."
+
+      - name: Check there are no dependencies
+        run: |
+          if grep -nE '\.package\(' Package.swift; then
+            echo "::error::Unblock Eject has no dependencies, so every line that runs is in this repository."
+            exit 1
+          fi
+          echo "No dependencies."
