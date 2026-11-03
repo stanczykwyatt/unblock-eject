@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Unblock Eject: see which app is keeping your disk from ejecting on Mac</title>
+  <title>Unblock Eject: find what's keeping your Mac's disk from ejecting</title>
   <meta name="description" content="Unblock Eject is a free, open-source Mac menu bar app that shows which apps and processes have files open on your external drives, memory cards and disk images, quits the one you choose the normal way, and ejects. For &quot;The disk wasn't ejected because one or more programs may be using it&quot;. Never force-quits, needs no permissions, no internet access.">
   <meta name="keywords" content="disk wasn't ejected because one or more programs may be using it, mac can't eject external drive, which app is using my disk mac, eject blocked mac, lsof eject, file locksmith mac, external drive won't eject, menu bar app">
   <link rel="canonical" href="https://stanczykwyatt.github.io/unblock-eject/">
@@ -56,38 +56,53 @@
   }
   </script>
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [
-      {
-        "@type": "Question",
-        "name": "Why won't my external drive eject on my Mac?",
-        "acceptedAnswer": { "@type": "Answer", "text": "Some app or process still has a file open on it, or is working in a folder on it. macOS won't eject a disk while that's true, but its alert doesn't say which program it is. Unblock Eject lists them, with the files each has open." }
-      },
-      {
-        "@type": "Question",
-        "name": "What does \"The disk wasn't ejected because one or more programs may be using it\" mean?",
-        "acceptedAnswer": { "@type": "Answer", "text": "A program has a file or folder on that disk open: often a photo or video editor, a terminal window in a folder on the disk, a document still open, Spotlight indexing it, or a disk image stored on it that's still mounted." }
-      },
-      {
-        "@type": "Question",
-        "name": "How do I find out which app is using my disk on a Mac?",
-        "acceptedAnswer": { "@type": "Answer", "text": "Click Unblock Eject in your menu bar. Every disk you can eject is listed with the apps and processes using it and the files they have open, with a Quit button for each app and an Eject button for the disk." }
-      },
-      {
-        "@type": "Question",
-        "name": "Does Unblock Eject force-quit apps or force eject?",
-        "acceptedAnswer": { "@type": "Answer", "text": "No. Quit sends the same request as an app's own Quit command, so it can ask to save first, and eject is the normal one macOS refuses while files are open. Nothing is quit or ejected without a click." }
-      },
-      {
-        "@type": "Question",
-        "name": "It says nothing is using the disk, but it still won't eject. Why?",
-        "acceptedAnswer": { "@type": "Answer", "text": "Parts of macOS that run as the system, like Spotlight's indexer and Time Machine's backups, are hidden from apps. Give it a minute and eject again." }
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Why won't my external drive eject?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Some app or process still has a file open on it, or is working in a folder on it. macOS won't eject a disk while that's true, so nothing is cut off mid-write, but its alert doesn't say which program it is. Unblock Eject lists them."
       }
-    ]
-  }
-  </script>
+    },
+    {
+      "@type": "Question",
+      "name": "Does it force-quit or force eject?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Never. Quit is the normal request an app can answer by asking to save, or by saying no, and eject is the normal one macOS refuses while files are open. Nothing is quit or ejected without a click."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "It says nothing is using the disk, but it still won't eject.",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Parts of macOS that run as the system, like Spotlight's indexer and Time Machine's backups, are hidden from apps. Give it a minute and eject again. If Spotlight keeps doing it, add the disk to Search Privacy in System Settings → Spotlight."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why isn't it sandboxed?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The App Sandbox hides other apps' open files and blocks quitting them, which is the whole job. So it runs outside it with no entitlements, no permissions to grant, the hardened runtime, and CI checks that it never uses the network or opens a file. The details are in SECURITY.md."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is it like lsof, or File Locksmith?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "It asks macOS the same question lsof does, then names the apps, groups their helpers and says what to do. Like PowerToys' File Locksmith on Windows, it can quit what's in the way, but for whole disks, and always politely."
+      }
+    }
+  ]
+}
+</script>
 
   <style>
     :root {
